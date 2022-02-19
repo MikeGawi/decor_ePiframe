@@ -57,7 +57,7 @@ class plugin(pluginbase):
 		return [k.lower() for k in self.__BORDERS.keys()]
 	
 	#Overwriting only postprocess method
-	def postprocess_photo (self, finalphoto, width, height, is_horizontal, convertmgr):
+	def postprocess_photo (self, finalphoto, width, height, is_horizontal, convertmgr, photo, idlabel, creationlabel, sourcelabel):
 		image = Image.open(finalphoto)
 		mode = image.mode	
 		if not is_horizontal: image = image.transpose(Image.ROTATE_90 if self.globalconfig.getint('rotation') == 90 else Image.ROTATE_270) #rotating image if frame not in horizontal position
