@@ -10,7 +10,7 @@ class plugin(pluginbase):
 	name = 'Decor'
 	author = 'MikeGawi'
 	description = 'Displays borders an quotes on frame'
-	site = 'https://github.com/MikeGawi/borders-ePiframe'
+	site = 'https://github.com/MikeGawi/decor-ePiframe'
 	info = 'Uses free images from https://www.rawpixel.com/'
 	
 	__COLORS = {
