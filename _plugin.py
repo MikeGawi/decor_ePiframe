@@ -13,7 +13,7 @@ class Plugin(PluginBase):
 
     name = "Decor"
     author = "MikeGawi"
-    description = "Displays borders an quotes on frame"
+    description = "Displays borders with quotes on frame"
     site = "https://github.com/MikeGawi/decor_ePiframe"
     info = "Uses free images from https://www.rawpixel.com/"
 
