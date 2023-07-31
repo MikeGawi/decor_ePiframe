@@ -2,7 +2,7 @@
 
 # Decor_ePiframe
 
-Displays decorative borders a quotes on [ePiframe](https://github.com/MikeGawi/ePiframe)
+Displays decorative borders with quotes on [ePiframe](https://github.com/MikeGawi/ePiframe)
 
 This plugin has been created with [ePiframe_plugin](https://github.com/MikeGawi/ePiframe_plugin) template.
 
