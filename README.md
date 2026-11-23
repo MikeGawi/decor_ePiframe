@@ -8,6 +8,16 @@ This plugin has been created with [ePiframe_plugin](https://github.com/MikeGawi/
 
 Uses free images from [rawpixel](https://www.rawpixel.com/) and [Google Fonts](https://fonts.google.com/) font.
 
+## Requirements
+
+* [ePiframe](https://github.com/MikeGawi/ePiframe) 2.0 or newer (Plugin API v2). For ePiframe 1.x use the version
+  of this plugin from before ePiframe 2.0.
+
+## How it works
+
+* The border is drawn over the photo converted for the display, with an optional random quote (semicolon separated list in `quotes`).
+* Set `random_border=0` and pick `border` to always use the same one.
+
 ## Installation
 
 On working ePiframe:
@@ -35,4 +45,9 @@ OR
 
 OR
 
-* In ePiframe WebUI (if enabled) under *Plugins - decor_ePiframe*
+* In ePiframe WebUI (if enabled) under *Plugins - Decor*
+
+Check the configuration with `./ePiframe.py --check-config` (in the ePiframe folder).
+
+The plugin folder name must stay a valid Python name (letters, digits, `_`), e.g. `decor_ePiframe`: ePiframe
+skips plugins in folders with dashes or dots.

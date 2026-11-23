@@ -1,160 +1,106 @@
-from misc.configproperty import ConfigProperty
-from modules.convertmanager import ConvertManager
-from modules.base.pluginbase import PluginBase
-from modules.base.configbase import ConfigBase
-from modules.pidmanager import PIDManager
-from misc.logs import Logs
-from PIL import Image, ImageDraw, ImageFont, ImageColor
-import os
+"""Decor_ePiframe: decorative borders with quotes (ePiframe Plugin API v2).
+
+A border image (and optionally a random quote at its free spot) is drawn over
+the converted photo (``postprocess_photo``). Borders: free images from
+https://www.rawpixel.com/, font: Freehand from Google Fonts.
+"""
+
 import random
+
+from PIL import Image, ImageColor, ImageDraw, ImageFont
+
+from epiframe.config.property import ConfigProperty, PropertyType
+from epiframe.plugins.base import PhotoFile
+from epiframe.plugins.base import Plugin as PluginBase
+
+# border name (= file borders/<name>.png) -> quote position (x, y) as fractions
+# of the photo size
+BORDERS = {
+    "dots": (0.36, 0.075),
+    "stars": (0.36, 0.075),
+    "hearts": (0.5, 0.075),
+    "flowers": (0.66, 0.92),
+    "grunge": (0.5, 0.9),
+    "smoke": (0.5, 0.9),
+    "leaves": (0.66, 0.92),
+    "winter": (0.64, 0.075),
+}
+BORDERS_DIR = "borders"
+FONT = "fonts/Freehand-Regular.ttf"
+COLORS = ["white", "black"]  # the outline has the other one
+STROKE_WIDTH = 2
+QUOTES_DELIMITER = ";"
 
 
 class Plugin(PluginBase):
-
     name = "Decor"
     author = "MikeGawi"
     description = "Displays borders with quotes on frame"
     site = "https://github.com/MikeGawi/decor_ePiframe"
     info = "Uses free images from https://www.rawpixel.com/"
 
-    __COLORS = {"WHITE": 255, "BLACK": 0}
+    def settings(self) -> list[ConfigProperty]:
+        return [
+            *super().settings(),  # is_enabled
+            ConfigProperty("font", PropertyType.INTEGER, min_value=8),
+            ConfigProperty("font_color", possible=COLORS),
+            ConfigProperty("random_border", PropertyType.BOOLEAN),
+            # used only when random_border is 0
+            ConfigProperty(
+                "border",
+                possible=list(BORDERS),
+                dependency="random_border",
+                dependency_value="0",
+            ),
+            ConfigProperty("quotes", not_empty=False),  # empty: no quotes
+        ]
 
-    # Key is also a filename, the tuple represents x,y percentage position
-    __BORDERS = {
-        "DOTS": (0.36, 0.075),
-        "STARS": (0.36, 0.075),
-        "HEARTS": (0.5, 0.075),
-        "FLOWERS": (0.66, 0.92),
-        "GRUNGE": (0.5, 0.9),
-        "SMOKE": (0.5, 0.9),
-        "LEAVES": (0.66, 0.92),
-        "WINTER": (0.64, 0.075),
-    }
+    def postprocess_photo(self, photo: PhotoFile) -> None:
+        border = self.pick_border()
+        with Image.open(photo.path) as source:
+            image = source.copy()
+        mode = image.mode  # black & white photos stay black & white
+        image = self.upright(image, photo, back=False).convert("RGBA")
+        self.paste_border(image, border)
+        image = image.convert(mode)
+        quotes = [q for q in self.config.get("quotes").split(QUOTES_DELIMITER) if q]
+        if quotes:
+            self.draw_quote(image, random.choice(quotes), BORDERS[border])
+        self.upright(image, photo, back=True).save(photo.path)
 
-    __BORDERS_DIR = "borders"
-    __FONT = "fonts/Freehand-Regular.ttf"
-
-    class PluginConfigManager(ConfigBase):
-        # building settings according to config.default file
-        # notice that referring to plugin class is done with self.main_class
-        def load_settings(self):
-            self.SETTINGS = [
-                ConfigProperty(
-                    "is_enabled", self, prop_type=ConfigProperty.BOOLEAN_TYPE
-                ),
-                ConfigProperty(
-                    "font", self, minvalue=8, prop_type=ConfigProperty.INTEGER_TYPE
-                ),
-                ConfigProperty(
-                    "font_color", self, possible=self.main_class.get_colors()
-                ),
-                ConfigProperty(
-                    "random_border", self, prop_type=ConfigProperty.BOOLEAN_TYPE
-                ),
-                ConfigProperty(
-                    "border",
-                    self,
-                    dependency=["random_border", "0"],
-                    possible=self.main_class.get_borders(),
-                ),  # enabled only when random_border is false
-                ConfigProperty(
-                    "quotes", self, not_empty=False
-                ),  # this property can be empty
-            ]
-
-    def __init__(
-        self,
-        path: str,
-        pid_manager: PIDManager,
-        logging: Logs,
-        global_config: ConfigBase,
-    ):
-        super().__init__(
-            path, pid_manager, logging, global_config
-        )  # default constructor
-
-    # config possible values methods
-    def get_colors(self):
-        return [key.lower() for key in self.__COLORS.keys()]
-
-    def get_borders(self):
-        return [key.lower() for key in self.__BORDERS.keys()]
-
-    # Overwriting only postprocess method
-    def postprocess_photo(
-        self,
-        final_photo: str,
-        width: int,
-        height: int,
-        is_horizontal: bool,
-        convert_manager: ConvertManager,
-        photo,
-        id_label: str,
-        creation_label: str,
-        source_label: str,
-    ):
-        image = Image.open(final_photo)
-        mode = image.mode
-        if not is_horizontal:
-            image = image.transpose(
-                Image.ROTATE_90
-                if self.global_config.getint("rotation") == 90
-                else Image.ROTATE_270
-            )  # rotating image if frame not in horizontal position
-        new_image = image.convert("RGBA")  # converting to RGB with alpha
-        image_width, image_height = new_image.size
-
-        # get selected border or get random one
-        picture = self.config.get("border")
+    def pick_border(self) -> str:
         if bool(self.config.getint("random_border")):
-            picture = random.choice(list(self.__BORDERS.keys()))
+            return random.choice(list(BORDERS))
+        return self.config.get("border")
 
-        border = Image.open(
-            os.path.join(self.path, self.__BORDERS_DIR, picture.lower() + ".png")
-        ).convert(
-            "RGBA"
-        )  # self.path is a plugin path
-        border = border.resize(
-            (image_width, image_height)
-        )  # resizing border to current photo size
-        new_image.paste(
-            border, (0, 0), border
-        )  # pasting border over the photo and with border mask
-        new_image = new_image.convert(mode)  # convert back to original photo mode
+    @staticmethod
+    def upright(image: Image.Image, photo: PhotoFile, back: bool) -> Image.Image:
+        # a vertical frame stores the photo turned: draw on the upright photo
+        if photo.horizontal:
+            return image
+        turn_left = (photo.rotation == 90) != back
+        return image.transpose(
+            Image.Transpose.ROTATE_90 if turn_left else Image.Transpose.ROTATE_270
+        )
 
-        if self.config.get("quotes"):
-            draw = ImageDraw.Draw(new_image)
-            font = ImageFont.truetype(
-                os.path.join(self.path, self.__FONT), self.config.getint("font")
-            )
-            fill_color = self.__COLORS[
-                self.config.get("font_color").upper()
-            ]  # getting fill and stroke colors...
-            stroke_color = (
-                self.__COLORS["WHITE"] + self.__COLORS["BLACK"]
-            ) - fill_color
+    def paste_border(self, image: Image.Image, border: str) -> None:
+        path = self.path / BORDERS_DIR / f"{border}.png"  # self.path: plugin folder
+        with Image.open(path) as source:
+            frame = source.convert("RGBA").resize(image.size)
+        image.paste(frame, (0, 0), frame)  # the border's alpha is the mask
 
-            stroke = ImageColor.getcolor(
-                {value: key for key, value in self.__COLORS.items()}[stroke_color], mode
-            )  # ...according to the image mode (can be black & white)
-            fill = ImageColor.getcolor(self.config.get("font_color"), mode)
-
-            position = self.__BORDERS[picture.upper()]
-            draw.text(
-                (position[0] * image_width, position[1] * image_height),
-                random.choice(self.config.get("quotes").split(";")),
-                anchor="mm",
-                font=font,
-                fill=fill,
-                stroke_width=2,
-                stroke_fill=stroke,
-            )  # drawing random text from quotes in the selected border position
-
-        if not is_horizontal:
-            new_image = new_image.transpose(
-                Image.ROTATE_270
-                if self.global_config.getint("rotation") == 90
-                else Image.ROTATE_90
-            )  # rotating back if in vertical position
-
-        new_image.save(final_photo)  # saving as final photo
+    def draw_quote(
+        self, image: Image.Image, quote: str, position: tuple[float, float]
+    ) -> None:
+        color = self.config.get("font_color")
+        outline = COLORS[1 - COLORS.index(color)]
+        font = ImageFont.truetype(str(self.path / FONT), self.config.getint("font"))
+        ImageDraw.Draw(image).text(
+            (position[0] * image.width, position[1] * image.height),
+            quote,
+            anchor="mm",  # centered at the position
+            font=font,
+            fill=ImageColor.getcolor(color, image.mode),
+            stroke_width=STROKE_WIDTH,
+            stroke_fill=ImageColor.getcolor(outline, image.mode),
+        )
